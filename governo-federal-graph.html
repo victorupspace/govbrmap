@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estrutura Federal — Graph View</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--bg-surface:#161b22;--bg-overlay:#1c2129;--bg-card:#1a1f27;--border:#30363d;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#484f58;--executivo:#58a6ff;--legislativo:#7ee787;--judiciario:#d2a8ff;--root-color:#f0c674}
+body{background:var(--bg);color:var(--text-primary);font-family:'Outfit',sans-serif;overflow:hidden;height:100vh;width:100vw}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+.topbar{position:fixed;top:0;left:0;right:0;height:44px;background:var(--bg-surface);border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center;padding:0 16px;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-secondary);opacity:0}
+.topbar .icon{width:16px;height:16px;border-radius:50%;background:var(--root-color);opacity:.7}
+.topbar .tab{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--bg);border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:1px solid var(--bg);margin-bottom:-1px;color:var(--text-primary);font-size:12px}
+.sidebar{position:fixed;top:44px;left:0;bottom:0;width:260px;background:var(--bg-surface);border-right:1px solid var(--border);z-index:90;padding:16px 12px;overflow-y:auto;opacity:0;transform:translateX(-20px)}
+.sidebar-title{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:12px;padding:0 8px}
+.tree-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;transition:background .15s;font-size:13px;color:var(--text-secondary);margin-bottom:1px}
+.tree-item:hover{background:var(--bg-overlay);color:var(--text-primary)}
+.tree-item.active{background:rgba(88,166,255,.1);color:var(--text-primary)}
+.tree-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tree-children{padding-left:20px}
+.tree-parent{font-weight:500;color:var(--text-primary)}
+.tooltip{position:fixed;z-index:200;background:var(--bg-overlay);border:1px solid var(--border);border-radius:8px;padding:10px 14px;pointer-events:none;opacity:0;backdrop-filter:blur(12px);max-width:260px}
+.tooltip-title{font-weight:600;font-size:13px;margin-bottom:2px}
+.tooltip-category{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;opacity:.6}
+.tooltip-hint{font-size:11px;color:var(--text-muted);margin-top:5px;font-style:italic}
+.profile-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:500;opacity:0;pointer-events:none}
+.profile-overlay.open{opacity:1;pointer-events:all}
+.profile-panel{position:fixed;top:44px;right:0;bottom:0;width:440px;max-width:92vw;background:var(--bg-surface);border-left:1px solid var(--border);z-index:600;transform:translateX(100%);overflow-y:auto}
+.profile-panel.open{transform:translateX(0)}
+.profile-header{padding:28px 24px 20px;border-bottom:1px solid var(--border);position:relative}
+.profile-close{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:8px;background:var(--bg-overlay);border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .15s}
+.profile-close:hover{background:var(--border);color:var(--text-primary)}
+.profile-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-weight:600}
+.profile-org-name{font-size:22px;font-weight:700;letter-spacing:-.3px;line-height:1.25;margin-bottom:6px;padding-right:40px}
+.profile-org-desc{font-size:13px;color:var(--text-secondary);line-height:1.55}
+.profile-section{padding:20px 24px;border-bottom:1px solid var(--border)}
+.profile-section-title{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:14px}
+.person-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;gap:14px;align-items:flex-start}
+.person-avatar{width:48px;height:48px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff}
+.person-info{flex:1;min-width:0}
+.person-name{font-weight:600;font-size:15px;margin-bottom:2px}
+.person-role{font-size:12px;color:var(--text-secondary);margin-bottom:8px}
+.person-meta{display:flex;flex-direction:column;gap:4px}
+.meta-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)}
+.meta-label{color:var(--text-muted);min-width:70px}
+.member-grid{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.member-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center;transition:border-color .15s}
+.member-card:hover{border-color:var(--border-accent,#3d444d)}
+.member-avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;opacity:.85}
+.member-info{flex:1;min-width:0}
+.member-name{font-size:13px;font-weight:500}
+.member-role{font-size:11px;color:var(--text-muted)}
+.member-tag{font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--text-muted);white-space:nowrap}
+.profile-connections{padding:20px 24px}
+.connection-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:13px;color:var(--text-secondary)}
+.connection-item:hover{background:var(--bg-overlay);color:var(--text-primary)}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.conn-arrow{margin-left:auto;opacity:.3;font-size:14px}
+.no-person{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--text-muted);font-size:13px;line-height:1.6}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fb950;margin-right:6px;vertical-align:middle}
+.status-dot.transitioning{background:#d29922}
+.status-dot.vacancy{background:#f85149}
+.dep-search{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-family:'Outfit',sans-serif;font-size:13px;outline:none;margin-bottom:12px;transition:border-color .2s}
+.dep-search:focus{border-color:var(--legislativo)}
+.dep-search::placeholder{color:var(--text-muted)}
+.party-group{margin-bottom:16px}
+.party-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;user-select:none}
+.party-header:hover .party-name{color:var(--text-primary)}
+.party-badge{padding:2px 8px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;background:rgba(126,231,135,.12);color:var(--legislativo);border:1px solid rgba(126,231,135,.2)}
+.party-name{font-size:12px;color:var(--text-secondary);transition:color .15s}
+.party-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
+.dep-list{display:flex;flex-direction:column;gap:2px}
+.dep-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;font-size:12px;color:var(--text-secondary);transition:background .1s}
+.dep-item:hover{background:var(--bg-overlay);color:var(--text-primary)}
+.dep-uf{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);min-width:22px;text-align:center}
+.dep-avatar-sm{width:26px;height:26px;border-radius:50%;flex-shrink:0;object-fit:cover;background:var(--bg-overlay);border:1px solid var(--border)}
+.dep-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loading-spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:14px;color:var(--text-muted);font-size:13px}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--legislativo);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dep-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.dep-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;flex:1;min-width:80px;text-align:center}
+.dep-stat-val{font-size:18px;font-weight:700;color:var(--text-primary)}
+.dep-stat-label{font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.legend{position:fixed;bottom:20px;right:20px;z-index:100;display:flex;gap:16px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);opacity:0}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.stats{position:fixed;bottom:20px;left:280px;z-index:100;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);display:flex;gap:20px;opacity:0}
+.search-box{position:fixed;top:56px;right:20px;z-index:100;opacity:0}
+.search-box input{background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px 8px 36px;color:var(--text-primary);font-family:'Outfit',sans-serif;font-size:13px;width:220px;outline:none;transition:border-color .2s,width .3s}
+.search-box input:focus{border-color:var(--executivo);width:280px}
+.search-box input::placeholder{color:var(--text-muted)}
+.search-box svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted)}
+.filters{position:fixed;top:56px;left:280px;z-index:100;display:flex;gap:8px;opacity:0}
+.filter-btn{background:var(--bg-surface);border:1px solid var(--border);border-radius:20px;padding:6px 14px;color:var(--text-secondary);font-family:'Outfit',sans-serif;font-size:12px;cursor:pointer;transition:all .2s}
+.filter-btn:hover,.filter-btn.active{border-color:var(--executivo);color:var(--text-primary);background:rgba(88,166,255,.08)}
+.filter-btn[data-filter="legislativo"]:hover,.filter-btn[data-filter="legislativo"].active{border-color:var(--legislativo);background:rgba(126,231,135,.08)}
+.filter-btn[data-filter="judiciario"]:hover,.filter-btn[data-filter="judiciario"].active{border-color:var(--judiciario);background:rgba(210,168,255,.08)}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="icon"></div><span style="margin-right:8px">← →</span><div class="tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/></svg>Graph view — Estrutura Federal</div></div>
+<div class="sidebar" id="sidebar"></div>
+<div class="filters"><div class="filter-btn active" data-filter="all">Todos</div><div class="filter-btn" data-filter="executivo">Executivo</div><div class="filter-btn" data-filter="legislativo">Legislativo</div><div class="filter-btn" data-filter="judiciario">Judiciário</div></div>
+<div class="search-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Buscar nó..." id="searchInput"></div>
+<canvas id="graphCanvas"></canvas>
+<div class="tooltip" id="tooltip"><div class="tooltip-title" id="ttTitle"></div><div class="tooltip-category" id="ttCat"></div><div class="tooltip-hint" id="ttHint"></div></div>
+<div class="profile-overlay" id="profileOverlay"></div>
+<div class="profile-panel" id="profilePanel"></div>
+<div class="legend"><div class="legend-item"><div class="legend-dot" style="background:var(--root-color)"></div>República</div><div class="legend-item"><div class="legend-dot" style="background:var(--executivo)"></div>Executivo</div><div class="legend-item"><div class="legend-dot" style="background:var(--legislativo)"></div>Legislativo</div><div class="legend-item"><div class="legend-dot" style="background:var(--judiciario)"></div>Judiciário</div></div>
+<div class="stats" id="stats"></div>
+<script>
+const people={
+presidente:{name:'Luiz Inácio Lula da Silva',role:'Presidente da República',party:'PT',since:'Jan 2023',mandate:'2023–2026',initials:'LS',status:'active',bio:'39º Presidente do Brasil, em seu terceiro mandato. Metalúrgico e líder sindical, foi presidente de 2003 a 2010 e reeleito em 2022.',extra:[{label:'Idade',value:'80 anos'},{label:'Natural',value:'Caetés, PE'}]},
+vice:{name:'Geraldo Alckmin',role:'Vice-Presidente da República',party:'PSB',since:'Jan 2023',mandate:'2023–2026',initials:'GA',status:'transitioning',bio:'Vice-presidente e ex-ministro do MDIC. Deixa a pasta para concorrer novamente como vice na chapa de Lula em 2026.',extra:[{label:'Idade',value:'73 anos'},{label:'Natural',value:'Pindamonhangaba, SP'}]},
+casa_civil:{name:'Miriam Belchior',role:'Ministra da Casa Civil',party:'PT',since:'Abr 2026',mandate:'Até dez/2026',initials:'MB',status:'active',bio:'Secretária-executiva promovida a ministra após saída de Rui Costa (PT), que disputará o Senado pela Bahia.',extra:[{label:'Anterior',value:'Rui Costa (PT)'}]},
+mfazenda:{name:'Dario Durigan',role:'Ministro da Fazenda',party:'—',since:'Mar 2026',mandate:'Até dez/2026',initials:'DD',status:'active',bio:'Ex-secretário-executivo. Assumiu após saída de Fernando Haddad, pré-candidato ao governo de SP.',extra:[{label:'Anterior',value:'Fernando Haddad (PT)'}]},
+msaude:{name:'Nísia Trindade',role:'Ministra da Saúde',party:'—',since:'Jan 2023',mandate:'2023–2026',initials:'NT',status:'active',bio:'Primeira mulher a presidir a Fiocruz. Socióloga e pesquisadora em saúde pública.',extra:[{label:'Formação',value:'Sociologia'}]},
+meducacao:{name:'Leonardo Barchini',role:'Ministro da Educação',party:'PT',since:'Abr 2026',mandate:'Até dez/2026',initials:'LB',status:'active',bio:'Ex-secretário-executivo do MEC. Assume após saída de Camilo Santana para disputar eleições.',extra:[{label:'Anterior',value:'Camilo Santana (PT)'}]},
+mjustica:{name:'Ricardo Lewandowski',role:'Min. da Justiça e Seg. Pública',party:'—',since:'Jan 2024',mandate:'2024–2026',initials:'RL',status:'active',bio:'Ex-ministro do STF (2006-2023). Nomeado para a Justiça e Segurança Pública em 2024.',extra:[{label:'Experiência',value:'Ministro do STF por 17 anos'}]},
+mdefesa:{name:'José Múcio',role:'Ministro da Defesa',party:'—',since:'Jan 2023',mandate:'2023–2026',initials:'JM',status:'active',bio:'Ex-ministro do TCU. Responsável pelas Forças Armadas e defesa nacional.',extra:[{label:'Experiência',value:'Ex-ministro do TCU'}]},
+mrelacoes:{name:'Mauro Vieira',role:'Min. de Relações Exteriores',party:'—',since:'Jan 2023',mandate:'2023–2026',initials:'MV',status:'active',bio:'Diplomata de carreira. Também foi chanceler no governo Dilma (2015-2016).',extra:[{label:'Carreira',value:'Diplomata'}]},
+agu:{name:'Jorge Messias',role:'Advogado-Geral da União',party:'—',since:'Jan 2023',mandate:'2023–2026',initials:'JM',status:'active',bio:'Ministro da AGU. Indicado por Lula para o STF em novembro de 2025, aguardando confirmação do Senado.',extra:[{label:'Status',value:'Indicado para vaga no STF'}]},
+ministerios:{name:null,bio:'O governo possui 38 ministérios. Em março de 2026, 18+ ministros deixaram seus cargos para disputar as eleições de outubro. Os substitutos são majoritariamente secretários-executivos.',extra:[{label:'Total',value:'38 ministérios'},{label:'Saídas 2026',value:'18+ ministros'}],
+members:[
+{name:'Miriam Belchior',role:'Casa Civil',initials:'MB',tag:'PT'},
+{name:'Dario Durigan',role:'Fazenda',initials:'DD',tag:'Novo'},
+{name:'Nísia Trindade',role:'Saúde',initials:'NT',tag:'—'},
+{name:'Leonardo Barchini',role:'Educação',initials:'LB',tag:'Novo'},
+{name:'Ricardo Lewandowski',role:'Justiça e Seg. Pública',initials:'RL',tag:'—'},
+{name:'José Múcio',role:'Defesa',initials:'JM',tag:'—'},
+{name:'Mauro Vieira',role:'Relações Exteriores',initials:'MV',tag:'—'},
+{name:'George Santoro',role:'Transportes',initials:'GS',tag:'Novo'},
+{name:'Tomé B. M. Franca',role:'Portos e Aeroportos',initials:'TF',tag:'Novo'},
+{name:'Bruno Moretti',role:'Planejamento',initials:'BM',tag:'Novo'},
+{name:'J. P. Capobianco',role:'Meio Ambiente',initials:'JC',tag:'Novo'},
+{name:'André de Paula',role:'Agricultura',initials:'AP',tag:'Novo'},
+{name:'Janine Mello',role:'Direitos Humanos',initials:'JM',tag:'Novo'},
+{name:'Fernanda Machiaveli',role:'Des. Agrário',initials:'FM',tag:'Novo'},
+]},
+congresso:{name:'Davi Alcolumbre',role:'Presidente do Congresso Nacional',party:'União Brasil-AP',since:'Fev 2025',mandate:'2025–2026',initials:'DA',status:'active',bio:'O presidente do Senado automaticamente preside o Congresso Nacional.',extra:[{label:'Estado',value:'Amapá'}]},
+senado:{name:'Davi Alcolumbre',role:'Presidente do Senado Federal',party:'União Brasil-AP',since:'Fev 2025',mandate:'2025–2026',initials:'DA',status:'active',bio:'Eleito com 73 dos 81 votos. Segundo mandato à frente do Senado (também presidiu 2019-2020).',extra:[{label:'Votos',value:'73 de 81'}]},
+camara:{name:'Hugo Motta',role:'Presidente da Câmara dos Deputados',party:'Republicanos-PB',since:'Fev 2025',mandate:'2025–2026',initials:'HM',status:'active',bio:'Mais jovem presidente da Câmara da história, eleito aos 35 anos com 444 votos. Quarto mandato como deputado federal.',extra:[{label:'Votos',value:'444 de 513'},{label:'Idade',value:'36 anos'}],loadDeputados:true},
+tcu:{name:'Bruno Dantas',role:'Presidente do TCU',party:null,since:'Dez 2022',mandate:'2023–2026',initials:'BD',status:'active',bio:'Preside o Tribunal de Contas da União, órgão auxiliar do Congresso na fiscalização de contas públicas.',extra:[{label:'Ministros',value:'9'}],
+members:[
+{name:'Bruno Dantas',role:'Presidente',initials:'BD',tag:'Pres.'},
+{name:'Vital do Rêgo',role:'Vice-Presidente',initials:'VR',tag:'Vice'},
+{name:'Walton Alencar',role:'Ministro',initials:'WA',tag:'Min.'},
+{name:'Benjamin Zymler',role:'Ministro',initials:'BZ',tag:'Min.'},
+{name:'Augusto Nardes',role:'Ministro',initials:'AN',tag:'Min.'},
+{name:'Aroldo Cedraz',role:'Ministro',initials:'AC',tag:'Min.'},
+{name:'Jorge Oliveira',role:'Ministro',initials:'JO',tag:'Min.'},
+{name:'Antonio Anastasia',role:'Ministro',initials:'AA',tag:'Min.'},
+{name:'Jhonatan de Jesus',role:'Ministro',initials:'JJ',tag:'Min.'},
+]},
+mesa_sen:{name:'Davi Alcolumbre',role:'Presidente da Mesa do Senado',party:'União Brasil-AP',since:'Fev 2025',mandate:'2025–2026',initials:'DA',status:'active',bio:'A Mesa Diretora do Senado dirige os trabalhos legislativos e administrativos da Casa. Biênio 2025-2026.',extra:[{label:'Membros',value:'7 titulares + 4 suplentes'}],
+members:[
+{name:'Davi Alcolumbre',role:'Presidente',initials:'DA',tag:'União-AP'},
+{name:'Eduardo Gomes',role:'1º Vice-Presidente',initials:'EG',tag:'PL-TO'},
+{name:'Humberto Costa',role:'2º Vice-Presidente',initials:'HC',tag:'PT-PE'},
+{name:'Daniella Ribeiro',role:'1ª Secretária',initials:'DR',tag:'PSD-PB'},
+{name:'Confúcio Moura',role:'2º Secretário',initials:'CM',tag:'MDB-RO'},
+{name:'Ana Paula Lobato',role:'3ª Secretária',initials:'AL',tag:'PDT-MA'},
+{name:'Laércio Oliveira',role:'4º Secretário',initials:'LO',tag:'PP-SE'},
+]},
+mesa_cam:{name:'Hugo Motta',role:'Presidente da Mesa da Câmara',party:'Republicanos-PB',since:'Fev 2025',mandate:'2025–2026',initials:'HM',status:'active',bio:'A Mesa Diretora da Câmara dirige os trabalhos legislativos e administrativos da Casa. Biênio 2025-2026.',extra:[{label:'Membros',value:'7 titulares + 4 suplentes'}],
+members:[
+{name:'Hugo Motta',role:'Presidente',initials:'HM',tag:'Rep.-PB'},
+{name:'Altineu Côrtes',role:'1º Vice-Presidente',initials:'AC',tag:'PL-RJ'},
+{name:'Elmar Nascimento',role:'2º Vice-Presidente',initials:'EN',tag:'União-BA'},
+{name:'Carlos Veras',role:'1º Secretário',initials:'CV',tag:'PT-PE'},
+{name:'Lula da Fonte',role:'2ª Secretaria',initials:'LF',tag:'PP-PE'},
+{name:'Delegada Katarina',role:'3ª Secretaria',initials:'DK',tag:'PSD-SE'},
+{name:'Sérgio Souza',role:'4º Secretário',initials:'SS',tag:'MDB-PR'},
+]},
+stf:{name:'Edson Fachin',role:'Presidente do STF',party:null,since:'Set 2025',mandate:'2025–2027',initials:'EF',status:'active',bio:'Ministro do STF desde 2015, indicado por Dilma Rousseff. Vice-presidente: Alexandre de Moraes. 1 vaga em aberto (aposentadoria de Barroso em out/2025).',extra:[{label:'Total',value:'11 ministros (1 vaga aberta)'},{label:'Vice',value:'Alexandre de Moraes'}],
+members:[
+{name:'Edson Fachin',role:'Presidente',initials:'EF',tag:'Dilma 2015'},
+{name:'Alexandre de Moraes',role:'Vice-Presidente',initials:'AM',tag:'Temer 2017'},
+{name:'Gilmar Mendes',role:'Decano',initials:'GM',tag:'FHC 2002'},
+{name:'Cármen Lúcia',role:'Ministra · Pres. TSE',initials:'CL',tag:'Lula 2006'},
+{name:'Dias Toffoli',role:'Ministro',initials:'DT',tag:'Lula 2009'},
+{name:'Luiz Fux',role:'Ministro',initials:'LF',tag:'Dilma 2011'},
+{name:'Flávio Dino',role:'Min. · Pres. 1ª Turma',initials:'FD',tag:'Lula 2023'},
+{name:'Cristiano Zanin',role:'Ministro',initials:'CZ',tag:'Lula 2023'},
+{name:'Nunes Marques',role:'Ministro',initials:'NM',tag:'Bolsonaro 2020'},
+{name:'André Mendonça',role:'Ministro',initials:'AM',tag:'Bolsonaro 2021'},
+{name:'Jorge Messias',role:'⚠ Indicado — pendente Senado',initials:'JM',tag:'Lula 2025'},
+]},
+stj:{name:'Herman Benjamin',role:'Presidente do STJ',party:null,since:'Ago 2024',mandate:'2024–2026',initials:'HB',status:'active',bio:'Ministro do STJ desde 2006. Defensor de inclusão social e causas ambientais. O STJ é composto por no mínimo 33 ministros.',extra:[{label:'Vice',value:'Luis Felipe Salomão'},{label:'Ministros',value:'33'}]},
+tst:{name:'Aloysio Corrêa da Veiga',role:'Presidente do TST',party:null,since:'Fev 2024',mandate:'2024–2026',initials:'AV',status:'active',bio:'Preside o Tribunal Superior do Trabalho, composto por 27 ministros. Última instância da Justiça do Trabalho.',extra:[{label:'Ministros',value:'27'}]},
+tse:{name:'Cármen Lúcia',role:'Presidente do TSE',party:null,since:'Jun 2024',mandate:'2024–2026',initials:'CL',status:'active',bio:'Ministra do STF. Comandará o TSE durante as eleições de 2026. Já presidiu o STF (2016-2018). O TSE é composto por 7 ministros.',extra:[{label:'Composição',value:'3 STF + 2 STJ + 2 advogados'},{label:'Eleições',value:'Comandará eleições out/2026'}]},
+stm:{name:'Ten. Brig. Francisco J. P. Ferreira',role:'Presidente do STM',party:null,since:'2024',mandate:'2024–2026',initials:'FF',status:'active',bio:'Preside o Superior Tribunal Militar, composto por 15 ministros (10 militares + 5 civis).',extra:[{label:'Composição',value:'10 militares + 5 civis'}]},
+cnj:{name:'Edson Fachin',role:'Presidente do CNJ',party:null,since:'Set 2025',mandate:'2025–2027',initials:'EF',status:'active',bio:'O presidente do STF preside automaticamente o CNJ. Órgão de controle administrativo e financeiro do Judiciário, com 15 conselheiros.',extra:[{label:'Regra',value:'Presidente do STF preside o CNJ'},{label:'Conselheiros',value:'15'}]},
+mp:{name:'Paulo Gonet',role:'Procurador-Geral da República',party:null,since:'Nov 2023',mandate:'Reconduzido 2025',initials:'PG',status:'active',bio:'Subprocurador-geral da República. Reconduzido em novembro de 2025 com 45 votos a 26 no Senado — margem mais apertada da história.',extra:[{label:'Indicado por',value:'Lula (2023, reconduzido 2025)'},{label:'Aprovação',value:'45 a 26 votos'}]},
+dp:{name:'Leonardo Magalhães',role:'Defensor Público-Geral Federal',party:null,since:'2023',mandate:'2023–2026',initials:'LM',status:'active',bio:'Chefe da Defensoria Pública da União, que presta assistência jurídica gratuita aos necessitados.',extra:[{label:'Órgão',value:'Defensoria Pública da União'}]},
+conselho_rep:{name:null,bio:'Composto pelo Vice-Presidente, presidentes da Câmara e Senado, líderes da maioria e minoria, Ministro da Justiça e 6 cidadãos brasileiros natos.',extra:[{label:'Tipo',value:'Órgão colegiado de consulta'}]},
+conselho_def:{name:null,bio:'Composto pelo Vice-Presidente, presidentes da Câmara e Senado, Ministros da Justiça, Defesa, Relações Exteriores e Comandantes das Forças Armadas.',extra:[{label:'Tipo',value:'Órgão colegiado de consulta'}]},
+comissoes_sen:{name:null,bio:'O Senado possui 16 comissões permanentes. Presidentes eleitos para o biênio 2025-2026 por acordo entre lideranças.',extra:[{label:'Total',value:'16 comissões permanentes'},{label:'Biênio',value:'2025–2026'}],
+members:[
+{name:'Otto Alencar',role:'CCJ — Constituição e Justiça',initials:'OA',tag:'PSD-BA'},
+{name:'Renan Calheiros',role:'CAE — Assuntos Econômicos',initials:'RC',tag:'MDB-AL'},
+{name:'Marcelo Castro',role:'CAS — Assuntos Sociais',initials:'MC',tag:'MDB-PI'},
+{name:'Nelsinho Trad',role:'CRE — Relações Exteriores',initials:'NT',tag:'PSD-MS'},
+{name:'Damares Alves',role:'CDH — Direitos Humanos',initials:'DA',tag:'Rep.-DF'},
+{name:'Teresa Leitão',role:'CE — Educação e Cultura',initials:'TL',tag:'PT-PE'},
+{name:'Fabiano Contarato',role:'CMA — Meio Ambiente',initials:'FC',tag:'PT-ES'},
+{name:'Marcos Rogério',role:'CI — Infraestrutura',initials:'MR',tag:'PL-RO'},
+{name:'Flávio Bolsonaro',role:'CSP — Segurança Pública',initials:'FB',tag:'PL-RJ'},
+{name:'Flávio Arns',role:'CCT — Ciência e Tecnologia',initials:'FA',tag:'PSB-PR'},
+{name:'Zequinha Marinho',role:'CRA — Agricultura',initials:'ZM',tag:'Pod.-PA'},
+{name:'Profª Dorinha Seabra',role:'CDR — Desenvolvimento Regional',initials:'DS',tag:'União-TO'},
+{name:'Dr. Hiran',role:'CTFC — Fiscalização e Controle',initials:'DH',tag:'PP-RR'},
+{name:'Leila Barros',role:'CEsp — Esporte',initials:'LB',tag:'PDT-DF'},
+]},
+comissoes_cam:{name:null,bio:'A Câmara possui 30 comissões permanentes. Presidentes eleitos para 2026 por acordo entre lideranças.',extra:[{label:'Total',value:'30 comissões permanentes'},{label:'Ano',value:'2026'}],
+members:[
+{name:'Paulo Azi',role:'CCJC — Constituição e Justiça',initials:'PA',tag:'União-BA'},
+{name:'Giovani Cherini',role:'Saúde',initials:'GC',tag:'PL-RS'},
+{name:'Luiz Nishimori',role:'Agricultura e Pecuária',initials:'LN',tag:'PSD-PR'},
+{name:'Carol Dartora',role:'Cultura',initials:'CD',tag:'PT-PR'},
+{name:'Del. Paulo Bilynskyj',role:'Segurança Pública',initials:'PB',tag:'PL-SP'},
+{name:'Luiz Philippe Orleans',role:'Relações Exteriores e Defesa',initials:'LP',tag:'PL-SP'},
+{name:'Joaquim Passarinho',role:'Minas e Energia',initials:'JP',tag:'PL-PA'},
+{name:'Clodoaldo Magalhães',role:'Defesa do Consumidor',initials:'CM',tag:'PV-PE'},
+{name:'Alice Portugal',role:'Direitos Humanos',initials:'AP',tag:'PCdoB-BA'},
+{name:'Bruno Ganem',role:'Previdência e Família',initials:'BG',tag:'Pod.-SP'},
+{name:'Juliana Cardoso',role:'Amazônia e Povos Originários',initials:'JC',tag:'PT-SP'},
+{name:'Saulo Pedroso',role:'Esporte',initials:'SP',tag:'PSD-SP'},
+{name:'Delegada Ione',role:'Adm. e Serviço Público',initials:'DI',tag:'Avante-MG'},
+{name:'Dr. Frederico',role:'Legislação Participativa',initials:'DF',tag:'PRD-MG'},
+]},
+cpi:{name:null,bio:'Comissões Parlamentares de Inquérito são temporárias, criadas para apurar fatos determinados. O Congresso pode ter CPIs mistas, e cada Casa pode ter as suas.',extra:[{label:'Tipo',value:'Comissão temporária'},{label:'Prazo',value:'120 dias, prorrogável'}]},
+proc_legis:{name:null,bio:'Processo legislativo brasileiro: PEC (Proposta de Emenda Constitucional), PL (Projeto de Lei), PLP (Projeto de Lei Complementar), MP (Medida Provisória), Decreto Legislativo e Resolução.',extra:[{label:'Tipos',value:'PEC, PL, PLP, MP, DL, Res.'}]},
+trf:{name:null,bio:'O Brasil possui 6 Tribunais Regionais Federais (TRFs), que são a 2ª instância da Justiça Federal.',extra:[{label:'Total',value:'6 TRFs'},{label:'Jurisdição',value:'Divididos por regiões'}],
+members:[
+{name:'Des. Mairan Maia',role:'TRF-1 (DF, GO, MG, BA +8)',initials:'MM',tag:'TRF1'},
+{name:'Des. Guilherme Calmon',role:'TRF-2 (RJ, ES)',initials:'GC',tag:'TRF2'},
+{name:'Des. Marisa Santos',role:'TRF-3 (SP, MS)',initials:'MS',tag:'TRF3'},
+{name:'Des. Ricardo Teixeira',role:'TRF-4 (RS, PR, SC)',initials:'RT',tag:'TRF4'},
+{name:'Des. Fernando Braga',role:'TRF-5 (PE, CE, AL +3)',initials:'FB',tag:'TRF5'},
+{name:'Des. Vallisney Oliveira',role:'TRF-6 (MG)',initials:'VO',tag:'TRF6'},
+]},
+tre:{name:null,bio:'Cada estado e o DF possuem um Tribunal Regional Eleitoral — total de 27 TREs. Compostos por 7 juízes, incluindo desembargadores, juízes de direito e advogados indicados pelo TJ.',extra:[{label:'Total',value:'27 TREs'},{label:'Composição',value:'7 juízes por TRE'}]},
+trt:{name:null,bio:'O Brasil possui 24 Tribunais Regionais do Trabalho — 2ª instância da Justiça do Trabalho.',extra:[{label:'Total',value:'24 TRTs'},{label:'Jurisdição',value:'Divididos por regiões'}]},
+jf:{name:null,bio:'A Justiça Federal de 1ª instância julga causas em que a União, autarquias e empresas públicas federais são interessadas. Distribuída em seções e subseções judiciárias.',extra:[{label:'Seções',value:'Uma por estado + DF'}]},
+jt:{name:null,bio:'A Justiça do Trabalho de 1ª instância é composta por Varas do Trabalho distribuídas pelo território nacional.',extra:[{label:'Varas',value:'1.587 Varas do Trabalho'}]},
+je:{name:null,bio:'A Justiça Eleitoral de 1ª instância é exercida por juízes eleitorais e juntas eleitorais em cada zona eleitoral do país.',extra:[{label:'Zonas',value:'~2.600 zonas eleitorais'}]},
+jm:{name:null,bio:'A Justiça Militar da União julga crimes militares definidos em lei. Composta por Conselhos de Justiça formados por juiz-auditor e oficiais.',extra:[{label:'Auditorias',value:'12 Auditorias Militares'}]},
+};
+const colorMap={root:'#f0c674',executivo:'#58a6ff',legislativo:'#7ee787',judiciario:'#d2a8ff'};
+const glowMap={root:'rgba(240,198,116,.35)',executivo:'rgba(88,166,255,.35)',legislativo:'rgba(126,231,135,.35)',judiciario:'rgba(210,168,255,.35)'};
+const nodes=[
+{id:'republica',label:'República Federativa do Brasil',group:'root',tier:0,desc:'Estado Democrático de Direito, composto por 3 poderes independentes e harmônicos.'},
+{id:'executivo',label:'Poder Executivo',group:'executivo',tier:1,desc:'Administra o Estado e executa as leis.'},
+{id:'legislativo',label:'Poder Legislativo',group:'legislativo',tier:1,desc:'Elabora leis e fiscaliza o Executivo.'},
+{id:'judiciario',label:'Poder Judiciário',group:'judiciario',tier:1,desc:'Interpreta leis e julga conflitos.'},
+{id:'presidente',label:'Presidente da República',group:'executivo',tier:2,desc:'Chefe de Estado e de Governo.'},
+{id:'vice',label:'Vice-Presidente',group:'executivo',tier:2,desc:'Substituto do Presidente.'},
+{id:'ministerios',label:'Ministérios',group:'executivo',tier:2,desc:'38 órgãos da administração direta.'},
+{id:'conselho_rep',label:'Conselho da República',group:'executivo',tier:2,desc:'Órgão superior de consulta.'},
+{id:'conselho_def',label:'Conselho de Defesa Nacional',group:'executivo',tier:2,desc:'Consulta sobre soberania e defesa.'},
+{id:'mfazenda',label:'Min. da Fazenda',group:'executivo',tier:3,desc:'Política econômica e fiscal.'},
+{id:'msaude',label:'Min. da Saúde',group:'executivo',tier:3,desc:'Política nacional de saúde.'},
+{id:'meducacao',label:'Min. da Educação',group:'executivo',tier:3,desc:'Política nacional de educação.'},
+{id:'mjustica',label:'Min. da Justiça',group:'executivo',tier:3,desc:'Direitos políticos e segurança pública.'},
+{id:'mdefesa',label:'Min. da Defesa',group:'executivo',tier:3,desc:'Forças Armadas e defesa nacional.'},
+{id:'mrelacoes',label:'Min. Relações Exteriores',group:'executivo',tier:3,desc:'Política exterior e diplomacia.'},
+{id:'casa_civil',label:'Casa Civil',group:'executivo',tier:3,desc:'Coordenação das ações do Governo.'},
+{id:'agu',label:'AGU',group:'executivo',tier:3,desc:'Advocacia-Geral da União.'},
+{id:'congresso',label:'Congresso Nacional',group:'legislativo',tier:2,desc:'Parlamento bicameral.'},
+{id:'senado',label:'Senado Federal',group:'legislativo',tier:2,desc:'81 senadores, 3 por estado.'},
+{id:'camara',label:'Câmara dos Deputados',group:'legislativo',tier:2,desc:'513 deputados federais.'},
+{id:'tcu',label:'TCU',group:'legislativo',tier:2,desc:'Tribunal de Contas da União.'},
+{id:'comissoes_sen',label:'Comissões do Senado',group:'legislativo',tier:3,desc:'Comissões permanentes e temporárias.'},
+{id:'comissoes_cam',label:'Comissões da Câmara',group:'legislativo',tier:3,desc:'Comissões permanentes e temporárias.'},
+{id:'mesa_sen',label:'Mesa do Senado',group:'legislativo',tier:3,desc:'Dirige os trabalhos do Senado.'},
+{id:'mesa_cam',label:'Mesa da Câmara',group:'legislativo',tier:3,desc:'Dirige os trabalhos da Câmara.'},
+{id:'cpi',label:'CPIs',group:'legislativo',tier:3,desc:'Comissões Parlamentares de Inquérito.'},
+{id:'proc_legis',label:'Processo Legislativo',group:'legislativo',tier:3,desc:'PEC, PL, MP, Decretos.'},
+{id:'stf',label:'STF',group:'judiciario',tier:2,desc:'Supremo Tribunal Federal — 11 Ministros.'},
+{id:'stj',label:'STJ',group:'judiciario',tier:2,desc:'Superior Tribunal de Justiça — 33 Ministros.'},
+{id:'tst',label:'TST',group:'judiciario',tier:2,desc:'Tribunal Superior do Trabalho — 27 Ministros.'},
+{id:'tse',label:'TSE',group:'judiciario',tier:2,desc:'Tribunal Superior Eleitoral — 7 Ministros.'},
+{id:'stm',label:'STM',group:'judiciario',tier:2,desc:'Superior Tribunal Militar — 15 Ministros.'},
+{id:'cnj',label:'CNJ',group:'judiciario',tier:2,desc:'Conselho Nacional de Justiça — 15 Conselheiros.'},
+{id:'trf',label:'TRFs',group:'judiciario',tier:3,desc:'Tribunais Regionais Federais.'},
+{id:'tre',label:'TREs',group:'judiciario',tier:3,desc:'Tribunais Regionais Eleitorais.'},
+{id:'trt',label:'TRTs',group:'judiciario',tier:3,desc:'Tribunais Regionais do Trabalho.'},
+{id:'jf',label:'Justiça Federal',group:'judiciario',tier:3,desc:'Causas de interesse da União.'},
+{id:'jt',label:'Justiça do Trabalho',group:'judiciario',tier:3,desc:'Conflitos trabalhistas.'},
+{id:'je',label:'Justiça Eleitoral',group:'judiciario',tier:3,desc:'Processos eleitorais.'},
+{id:'jm',label:'Justiça Militar',group:'judiciario',tier:3,desc:'Crimes militares.'},
+{id:'mp',label:'Ministério Público',group:'judiciario',tier:3,desc:'Defesa da ordem jurídica.'},
+{id:'dp',label:'Defensoria Pública',group:'judiciario',tier:3,desc:'Assistência jurídica gratuita.'},
+];
+const links=[
+{s:'republica',t:'executivo'},{s:'republica',t:'legislativo'},{s:'republica',t:'judiciario'},
+{s:'executivo',t:'presidente'},{s:'executivo',t:'vice'},{s:'executivo',t:'ministerios'},
+{s:'executivo',t:'conselho_rep'},{s:'executivo',t:'conselho_def'},
+{s:'presidente',t:'vice'},{s:'presidente',t:'casa_civil'},{s:'presidente',t:'agu'},
+{s:'ministerios',t:'mfazenda'},{s:'ministerios',t:'msaude'},{s:'ministerios',t:'meducacao'},
+{s:'ministerios',t:'mjustica'},{s:'ministerios',t:'mdefesa'},{s:'ministerios',t:'mrelacoes'},
+{s:'ministerios',t:'casa_civil'},
+{s:'legislativo',t:'congresso'},{s:'legislativo',t:'tcu'},
+{s:'congresso',t:'senado'},{s:'congresso',t:'camara'},
+{s:'senado',t:'comissoes_sen'},{s:'senado',t:'mesa_sen'},
+{s:'camara',t:'comissoes_cam'},{s:'camara',t:'mesa_cam'},
+{s:'congresso',t:'cpi'},{s:'congresso',t:'proc_legis'},
+{s:'judiciario',t:'stf'},{s:'judiciario',t:'stj'},{s:'judiciario',t:'tst'},
+{s:'judiciario',t:'tse'},{s:'judiciario',t:'stm'},{s:'judiciario',t:'cnj'},
+{s:'stj',t:'trf'},{s:'trf',t:'jf'},{s:'tse',t:'tre'},{s:'tre',t:'je'},
+{s:'tst',t:'trt'},{s:'trt',t:'jt'},{s:'stm',t:'jm'},
+{s:'judiciario',t:'mp'},{s:'judiciario',t:'dp'},
+{s:'tcu',t:'executivo'},{s:'stf',t:'congresso'},{s:'presidente',t:'congresso'},
+];
+
+// === GRAPH ENGINE ===
+const canvas=document.getElementById('graphCanvas'),ctx=canvas.getContext('2d');
+let W,H,dpr,hoveredNode=null,draggedNode=null,activeFilter='all',searchTerm='';
+let mouseX=0,mouseY=0,camX=0,camY=0,camZoom=1,isDraggingCanvas=false,lastMouse={x:0,y:0},panelOpen=false;
+function resize(){dpr=window.devicePixelRatio||1;W=window.innerWidth;H=window.innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);}
+resize();window.addEventListener('resize',resize);
+const cX=W/2,cY=H/2,adj={};
+nodes.forEach(n=>adj[n.id]=new Set());
+links.forEach(l=>{adj[l.s].add(l.t);adj[l.t].add(l.s);});
+(function initPos(){const ga={executivo:-Math.PI/2-.3,legislativo:Math.PI/6,judiciario:Math.PI*5/6};nodes.forEach(n=>{if(n.tier===0){n.x=cX;n.y=cY;}else if(n.tier===1){const a=ga[n.group];n.x=cX+Math.cos(a)*200;n.y=cY+Math.sin(a)*200;}else if(n.tier===2){const a=ga[n.group],sp=(Math.random()-.5)*1.2,d=300+Math.random()*120;n.x=cX+Math.cos(a+sp)*d;n.y=cY+Math.sin(a+sp)*d;}else{const a=ga[n.group],sp=(Math.random()-.5)*1.6,d=420+Math.random()*160;n.x=cX+Math.cos(a+sp)*d;n.y=cY+Math.sin(a+sp)*d;}n.vx=0;n.vy=0;n.alpha=0;n.radius=n.tier===0?10:n.tier===1?8:n.tier===2?6:4.5;n.baseRadius=n.radius;});})();
+function sim(){for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];let dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=1800/(d*d),fx=dx/d*f,fy=dy/d*f;a.vx+=fx*.3;a.vy+=fy*.3;b.vx-=fx*.3;b.vy-=fy*.3;}links.forEach(l=>{const a=nodes.find(n=>n.id===l.s),b=nodes.find(n=>n.id===l.t);let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-140)*.008,fx=dx/d*f,fy=dy/d*f;a.vx+=fx*.3;a.vy+=fy*.3;b.vx-=fx*.3;b.vy-=fy*.3;});nodes.forEach(n=>{n.vx+=(cX-n.x)*.0005;n.vy+=(cY-n.y)*.0005;});nodes.forEach(n=>{if(n===draggedNode)return;n.vx*=.88;n.vy*=.88;n.x+=n.vx;n.y+=n.vy;});}
+function gna(n){if(activeFilter!=='all'&&n.group!==activeFilter&&n.group!=='root')return .08;if(searchTerm&&!n.label.toLowerCase().includes(searchTerm))return .08;return 1;}
+const parts=[];for(let i=0;i<50;i++)parts.push({x:Math.random()*2000-200,y:Math.random()*1400-200,r:Math.random()*1.5+.3,sp:Math.random()*.15+.05,a:Math.random()*.3+.05,an:Math.random()*Math.PI*2});
+function draw(){ctx.clearRect(0,0,W,H);ctx.save();ctx.translate(W/2,H/2);ctx.scale(camZoom,camZoom);ctx.translate(-W/2+camX,-H/2+camY);
+links.forEach(l=>{const a=nodes.find(n=>n.id===l.s),b=nodes.find(n=>n.id===l.t),la=Math.min(gna(a),gna(b)),dir=hoveredNode&&(a.id===hoveredNode.id||b.id===hoveredNode.id);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);if(dir){const g=ctx.createLinearGradient(a.x,a.y,b.x,b.y);g.addColorStop(0,colorMap[a.group]+'80');g.addColorStop(1,colorMap[b.group]+'80');ctx.strokeStyle=g;ctx.lineWidth=1.8;ctx.globalAlpha=la;}else{ctx.strokeStyle=hoveredNode?'rgba(255,255,255,.02)':'rgba(255,255,255,.06)';ctx.lineWidth=.8;ctx.globalAlpha=la*(hoveredNode?.3:1);}ctx.stroke();ctx.globalAlpha=1;});
+nodes.forEach(n=>{const al=gna(n),isH=hoveredNode===n,isN=hoveredNode&&adj[hoveredNode.id]?.has(n.id),dim=hoveredNode&&!isH&&!isN,r=isH?n.baseRadius*1.6:isN?n.baseRadius*1.2:n.baseRadius,col=colorMap[n.group],fa=dim?al*.15:al*n.alpha,hp=!!people[n.id];if((isH||n.tier<=1)&&fa>.3){const gw=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*5);gw.addColorStop(0,glowMap[n.group]);gw.addColorStop(1,'transparent');ctx.beginPath();ctx.arc(n.x,n.y,r*5,0,Math.PI*2);ctx.fillStyle=gw;ctx.globalAlpha=fa*(isH?.9:.4);ctx.fill();}if(hp&&fa>.2){ctx.beginPath();ctx.arc(n.x,n.y,r+3,0,Math.PI*2);ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.globalAlpha=fa*.4;ctx.stroke();}ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.fillStyle=col;ctx.globalAlpha=fa;ctx.fill();ctx.globalAlpha=1;if(fa>.2){const fs=n.tier===0?13:n.tier===1?12:11;ctx.font=`${n.tier<=1?'500':'400'} ${fs}px Outfit`;ctx.fillStyle=isH?'#fff':dim?'#484f58':'#c9d1d9';ctx.globalAlpha=fa*(dim?.4:1);ctx.textAlign='center';ctx.fillText(n.label,n.x,n.y+r+16);ctx.globalAlpha=1;}});
+ctx.restore();parts.forEach(p=>{p.x+=Math.cos(p.an)*p.sp;p.y+=Math.sin(p.an)*p.sp;p.an+=(Math.random()-.5)*.02;if(p.x<-50||p.x>W+50||p.y<-50||p.y>H+50){p.x=Math.random()*W;p.y=Math.random()*H;}ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${p.a})`;ctx.fill();});requestAnimationFrame(loop);}
+let fr=0;function loop(){fr++;if(fr<500)sim();else if(fr%4===0)sim();draw();}
+function stw(sx,sy){return{x:(sx-W/2)/camZoom+W/2-camX,y:(sy-H/2)/camZoom+H/2-camY};}
+
+// INTERACTIONS
+canvas.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;const w=stw(e.clientX,e.clientY);if(draggedNode){draggedNode.x=w.x;draggedNode.y=w.y;draggedNode.vx=0;draggedNode.vy=0;return;}if(isDraggingCanvas){camX+=(e.clientX-lastMouse.x)/camZoom;camY+=(e.clientY-lastMouse.y)/camZoom;lastMouse.x=e.clientX;lastMouse.y=e.clientY;return;}let f=null;for(let n of nodes){const dx=w.x-n.x,dy=w.y-n.y;if(Math.sqrt(dx*dx+dy*dy)<n.baseRadius+12){f=n;break;}}if(f!==hoveredNode){hoveredNode=f;canvas.style.cursor=f?'pointer':'grab';updateTT();}});
+let cst=0,csp={x:0,y:0};
+canvas.addEventListener('mousedown',e=>{cst=Date.now();csp={x:e.clientX,y:e.clientY};const w=stw(e.clientX,e.clientY);for(let n of nodes){const dx=w.x-n.x,dy=w.y-n.y;if(Math.sqrt(dx*dx+dy*dy)<n.baseRadius+12){draggedNode=n;canvas.style.cursor='grabbing';return;}}isDraggingCanvas=true;lastMouse.x=e.clientX;lastMouse.y=e.clientY;canvas.style.cursor='grabbing';});
+canvas.addEventListener('mouseup',e=>{const dt=Date.now()-cst,dd=Math.sqrt((e.clientX-csp.x)**2+(e.clientY-csp.y)**2);if(draggedNode&&dt<300&&dd<5)openProfile(draggedNode);draggedNode=null;isDraggingCanvas=false;canvas.style.cursor=hoveredNode?'pointer':'grab';});
+canvas.addEventListener('wheel',e=>{e.preventDefault();camZoom*=1-e.deltaY*.001;camZoom=Math.max(.3,Math.min(3,camZoom));},{passive:false});
+let ltd=0;
+canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0];cst=Date.now();csp={x:t.clientX,y:t.clientY};const w=stw(t.clientX,t.clientY);for(let n of nodes){const dx=w.x-n.x,dy=w.y-n.y;if(Math.sqrt(dx*dx+dy*dy)<n.baseRadius+20){draggedNode=n;return;}}isDraggingCanvas=true;lastMouse.x=t.clientX;lastMouse.y=t.clientY;}if(e.touches.length===2){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;ltd=Math.sqrt(dx*dx+dy*dy);}},{passive:true});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1){const t=e.touches[0];if(draggedNode){const w=stw(t.clientX,t.clientY);draggedNode.x=w.x;draggedNode.y=w.y;}else if(isDraggingCanvas){camX+=(t.clientX-lastMouse.x)/camZoom;camY+=(t.clientY-lastMouse.y)/camZoom;lastMouse.x=t.clientX;lastMouse.y=t.clientY;}}if(e.touches.length===2){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY,d=Math.sqrt(dx*dx+dy*dy);if(ltd){camZoom*=d/ltd;camZoom=Math.max(.3,Math.min(3,camZoom));}ltd=d;}},{passive:false});
+canvas.addEventListener('touchend',()=>{if(draggedNode&&Date.now()-cst<300)openProfile(draggedNode);draggedNode=null;isDraggingCanvas=false;ltd=0;});
+
+// TOOLTIP
+const ttEl=document.getElementById('tooltip'),ttT=document.getElementById('ttTitle'),ttC=document.getElementById('ttCat'),ttH=document.getElementById('ttHint');
+function updateTT(){if(hoveredNode){ttT.textContent=hoveredNode.label;ttC.textContent=hoveredNode.group==='root'?'RAIZ':hoveredNode.group.toUpperCase();ttC.style.color=colorMap[hoveredNode.group];const p=people[hoveredNode.id];ttH.textContent=p?(p.members?`⬡ ${p.members.length} membros — clique para ver`:'⬡ Clique para ver ocupante'):'';const x=Math.min(mouseX+16,W-280),y=Math.min(mouseY+16,H-100);gsap.set(ttEl,{left:x,top:y});gsap.to(ttEl,{opacity:1,y:0,duration:.2,ease:'power2.out'});}else gsap.to(ttEl,{opacity:0,y:4,duration:.15});}
+
+// PROFILE PANEL
+const ov=document.getElementById('profileOverlay'),pn=document.getElementById('profilePanel');
+function openProfile(node){
+const p=people[node.id],col=colorMap[node.group],gl=node.group==='root'?'República':node.group.charAt(0).toUpperCase()+node.group.slice(1);
+let conHTML='';const nb=[...adj[node.id]];
+if(nb.length){conHTML=`<div class="profile-connections"><div class="profile-section-title">Conexões (${nb.length})</div>`;nb.forEach(nid=>{const nn=nodes.find(x=>x.id===nid);if(nn)conHTML+=`<div class="connection-item" data-node="${nid}"><div class="conn-dot" style="background:${colorMap[nn.group]}"></div>${nn.label}<span class="conn-arrow">→</span></div>`;});conHTML+='</div>';}
+
+let perHTML='';
+if(p&&p.name){
+const sc=p.status==='transitioning'?'transitioning':'',sl=p.status==='transitioning'?'Em transição':'Em exercício';
+let mr='';if(p.party)mr+=`<div class="meta-row"><span class="meta-label">Partido</span>${p.party}</div>`;if(p.since)mr+=`<div class="meta-row"><span class="meta-label">Desde</span>${p.since}</div>`;if(p.mandate)mr+=`<div class="meta-row"><span class="meta-label">Mandato</span>${p.mandate}</div>`;if(p.extra)p.extra.forEach(e=>{mr+=`<div class="meta-row"><span class="meta-label">${e.label}</span>${e.value}</div>`;});
+perHTML=`<div class="profile-section"><div class="profile-section-title">Ocupante Atual</div><div class="person-card"><div class="person-avatar" style="background:${col}">${p.initials}</div><div class="person-info"><div class="person-name">${p.name}</div><div class="person-role"><span class="status-dot ${sc}"></span>${sl}</div><div class="person-meta">${mr}</div></div></div>${p.bio?`<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);line-height:1.6;">${p.bio}</div>`:''}</div>`;
+}else if(p&&!p.name){
+let mr2='';if(p.extra)mr2=p.extra.map(e=>`<div class="meta-row" style="padding:4px 0;"><span class="meta-label">${e.label}</span>${e.value}</div>`).join('');
+perHTML=`<div class="profile-section"><div class="profile-section-title">Informações</div><div class="no-person"><div>${p.bio||'Órgão colegiado.'}</div></div>${mr2?`<div style="margin-top:12px;">${mr2}</div>`:''}</div>`;
+}else{
+perHTML=`<div class="profile-section"><div class="profile-section-title">Ocupante</div><div class="no-person"><div>Dados do ocupante não disponíveis para este nó.</div></div></div>`;
+}
+
+// MEMBERS SECTION
+let membersHTML='';
+if(p&&p.members&&p.members.length){
+membersHTML=`<div class="profile-section"><div class="profile-section-title">Composição Atual (${p.members.length})</div><div class="member-grid">`;
+p.members.forEach(m=>{
+const isVacancy=m.role&&m.role.includes('⚠');
+membersHTML+=`<div class="member-card"><div class="member-avatar" style="background:${isVacancy?'#f8514922':col}${isVacancy?'':''}">${m.initials}</div><div class="member-info"><div class="member-name">${m.name}</div><div class="member-role">${m.role}</div></div><div class="member-tag">${m.tag}</div></div>`;
+});
+membersHTML+='</div></div>';
+}
+
+// DEPUTADOS DYNAMIC SECTION
+let depHTML='';
+if(p&&p.loadDeputados){
+depHTML=`<div class="profile-section" id="depSection"><div class="profile-section-title">Deputados Federais (513)</div><div class="loading-spinner"><div class="spinner"></div>Carregando deputados da API da Câmara...</div></div>`;
+}
+
+pn.innerHTML=`<div class="profile-header"><button class="profile-close" id="pClose">✕</button><div class="profile-badge" style="background:${col}22;color:${col};border:1px solid ${col}44;">${gl}</div><div class="profile-org-name">${node.label}</div><div class="profile-org-desc">${node.desc||''}</div></div>${perHTML}${membersHTML}${depHTML}${conHTML}`;
+
+// Load deputados from API
+if(p&&p.loadDeputados){
+loadDeputados();
+}
+ov.classList.add('open');gsap.to(pn,{x:0,duration:.45,ease:'power3.out',onStart:()=>pn.classList.add('open')});gsap.fromTo(ov,{opacity:0},{opacity:1,duration:.3});panelOpen=true;
+document.getElementById('pClose').addEventListener('click',closeP);ov.onclick=closeP;
+pn.querySelectorAll('.connection-item').forEach(el=>{el.addEventListener('click',()=>{const nn=nodes.find(n=>n.id===el.dataset.node);if(nn){gsap.to({cx:camX,cy:camY},{cx:-(nn.x-cX),cy:-(nn.y-cY),duration:.6,ease:'power3.inOut',onUpdate:function(){camX=this.targets()[0].cx;camY=this.targets()[0].cy;}});setTimeout(()=>openProfile(nn),100);}});});
+}
+function closeP(){gsap.to(pn,{x:440,duration:.35,ease:'power3.in',onComplete:()=>pn.classList.remove('open')});gsap.to(ov,{opacity:0,duration:.2,onComplete:()=>ov.classList.remove('open')});panelOpen=false;}
+
+let deputadosCache=null;
+async function loadDeputados(){
+const sec=document.getElementById('depSection');
+if(!sec)return;
+try{
+if(!deputadosCache){
+const r=await fetch('https://dadosabertos.camara.leg.br/api/v2/deputados?itens=600&ordem=ASC&ordenarPor=nome');
+const d=await r.json();
+deputadosCache=d.dados;
+}
+const deps=deputadosCache;
+// Group by party
+const byParty={};
+deps.forEach(d=>{
+const p=d.siglaPartido||'SEM';
+if(!byParty[p])byParty[p]=[];
+byParty[p].push(d);
+});
+const sortedParties=Object.keys(byParty).sort((a,b)=>byParty[b].length-byParty[a].length);
+const totalPartidos=sortedParties.length;
+
+// Build HTML
+let html=`<div class="profile-section-title">Deputados Federais (${deps.length})</div>`;
+html+=`<div class="dep-stats"><div class="dep-stat"><div class="dep-stat-val">${deps.length}</div><div class="dep-stat-label">Deputados</div></div><div class="dep-stat"><div class="dep-stat-val">${totalPartidos}</div><div class="dep-stat-label">Partidos</div></div><div class="dep-stat"><div class="dep-stat-val">27</div><div class="dep-stat-label">UFs</div></div></div>`;
+html+=`<input type="text" class="dep-search" placeholder="Buscar deputado por nome, partido ou UF..." id="depSearch">`;
+html+=`<div id="depList">`;
+sortedParties.forEach(party=>{
+const list=byParty[party];
+html+=`<div class="party-group" data-party="${party}"><div class="party-header"><span class="party-badge">${party}</span><span class="party-count">${list.length} deputado${list.length>1?'s':''}</span></div><div class="dep-list">`;
+list.forEach(d=>{
+const foto=d.urlFoto||'';
+html+=`<div class="dep-item" data-name="${(d.nome||'').toLowerCase()}" data-uf="${d.siglaUf}" data-party="${party}"><img class="dep-avatar-sm" src="${foto}" alt="" loading="lazy" onerror="this.style.display='none'"><span class="dep-name">${d.nome}</span><span class="dep-uf">${d.siglaUf}</span></div>`;
+});
+html+=`</div></div>`;
+});
+html+=`</div>`;
+sec.innerHTML=html;
+
+// Search logic
+const searchEl=document.getElementById('depSearch');
+if(searchEl){
+searchEl.addEventListener('input',e=>{
+const q=e.target.value.toLowerCase();
+const groups=sec.querySelectorAll('.party-group');
+groups.forEach(g=>{
+const items=g.querySelectorAll('.dep-item');
+let vis=0;
+items.forEach(it=>{
+const match=it.dataset.name.includes(q)||it.dataset.uf.toLowerCase().includes(q)||it.dataset.party.toLowerCase().includes(q);
+it.style.display=match?'':'none';
+if(match)vis++;
+});
+g.style.display=vis>0?'':'none';
+const cnt=g.querySelector('.party-count');
+if(cnt&&q)cnt.textContent=`${vis} encontrado${vis!==1?'s':''}`;
+else if(cnt)cnt.textContent=`${items.length} deputado${items.length>1?'s':''}`;
+});
+});
+}
+}catch(err){
+sec.innerHTML=`<div class="profile-section-title">Deputados Federais</div><div class="no-person">Não foi possível carregar os dados da API da Câmara. Verifique sua conexão.<br><br><small style="opacity:.5">${err.message}</small></div>`;
+}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panelOpen)closeP();});
+
+// SIDEBAR
+(function buildSB(){const sb=document.getElementById('sidebar');const gs=[{k:'root',l:'⬡ República'},{k:'executivo',l:'◆ Poder Executivo'},{k:'legislativo',l:'◆ Poder Legislativo'},{k:'judiciario',l:'◆ Poder Judiciário'}];let h='<div class="sidebar-title">Estrutura Federal</div>';gs.forEach(g=>{nodes.filter(n=>n.group===g.k).sort((a,b)=>a.tier-b.tier).forEach(n=>{const pc=n.tier>1?'tree-children':'',pp=n.tier<=1?'tree-parent':'',p=people[n.id],hp=p&&(p.name||p.members);const mc=p&&p.members?p.members.length:0;h+=`<div class="${pc}"><div class="tree-item ${pp}" data-node="${n.id}"><div class="tree-dot" style="background:${colorMap[n.group]}"></div>${n.label}${mc?`<span style="margin-left:auto;opacity:.35;font-size:10px;font-family:JetBrains Mono,monospace">${mc}</span>`:hp?'<span style="margin-left:auto;opacity:.3;font-size:10px;">●</span>':''}</div></div>`;});});sb.innerHTML=h;
+sb.querySelectorAll('.tree-item').forEach(el=>{el.addEventListener('click',()=>{const nd=nodes.find(n=>n.id===el.dataset.node);if(nd){gsap.to({cx:camX,cy:camY},{cx:-(nd.x-cX),cy:-(nd.y-cY),duration:.8,ease:'power3.inOut',onUpdate:function(){camX=this.targets()[0].cx;camY=this.targets()[0].cy;}});gsap.to({z:camZoom},{z:1.5,duration:.8,ease:'power3.inOut',onUpdate:function(){camZoom=this.targets()[0].z;}});sb.querySelectorAll('.tree-item').forEach(e=>e.classList.remove('active'));el.classList.add('active');setTimeout(()=>openProfile(nd),300);}});el.addEventListener('mouseenter',()=>{hoveredNode=nodes.find(n=>n.id===el.dataset.node)||null;});el.addEventListener('mouseleave',()=>{hoveredNode=null;});});})();
+
+document.querySelectorAll('.filter-btn').forEach(b=>{b.addEventListener('click',()=>{document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeFilter=b.dataset.filter;});});
+document.getElementById('searchInput').addEventListener('input',e=>{searchTerm=e.target.value.toLowerCase();});
+document.getElementById('stats').innerHTML=`<span>${nodes.length} nós</span><span>${links.length} conexões</span><span>Clique para ver membros</span>`;
+
+// INTRO
+(function intro(){nodes.forEach((n,i)=>{gsap.to(n,{alpha:1,duration:1.2,delay:n.tier*.3+i*.03,ease:'power2.out'});});gsap.to('.topbar',{opacity:1,duration:.6,delay:.2});gsap.to('.sidebar',{opacity:1,x:0,duration:.7,delay:.4,ease:'power3.out'});gsap.to('.filters',{opacity:1,duration:.5,delay:.6});gsap.to('.search-box',{opacity:1,duration:.5,delay:.7});gsap.to('.legend',{opacity:1,duration:.5,delay:.9});gsap.to('.stats',{opacity:1,duration:.5,delay:1});camZoom=.5;gsap.to({z:.5},{z:1,duration:2.5,delay:.2,ease:'power2.out',onUpdate:function(){camZoom=this.targets()[0].z;}});})();
+loop();
+</script></body></html>
